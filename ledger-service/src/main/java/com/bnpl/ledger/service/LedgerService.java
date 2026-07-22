@@ -8,9 +8,12 @@ import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
 import com.bnpl.ledger.entity.Transaction;
 import com.bnpl.ledger.enums.TransactionStatus;
+import com.bnpl.ledger.event.CheckoutEvent;
+import com.bnpl.ledger.event.RepaymentEvent;
 import com.bnpl.ledger.repository.RepaymentRepository;
 import com.bnpl.ledger.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,11 +25,13 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LedgerService {
 
     private final TransactionRepository transactionRepository;
     private final RepaymentRepository repaymentRepository;
     private final UserServiceClient userServiceClient;
+    private final KafkaProducerService kafkaProducerService;
 
     @Transactional
     public CheckoutResponse processCheckout(CheckoutRequest request) {
@@ -68,6 +73,20 @@ public class LedgerService {
 
         repaymentRepository.save(repayment);
 
+        // 5. Publish Kafka Event asynchronously for consumers (e.g. Notification Service)
+        try {
+            CheckoutEvent event = CheckoutEvent.builder()
+                    .transactionId(savedTransaction.getId())
+                    .userId(savedTransaction.getUserId())
+                    .amount(savedTransaction.getAmount())
+                    .merchantName(savedTransaction.getMerchantName())
+                    .timestamp(savedTransaction.getTransactionDate())
+                    .build();
+            kafkaProducerService.sendCheckoutEvent(event);
+        } catch (Exception e) {
+            log.error("Failed to publish CheckoutEvent to Kafka: {}", e.getMessage());
+        }
+
         return CheckoutResponse.builder()
                 .transactionId(savedTransaction.getId())
                 .userId(savedTransaction.getUserId())
@@ -99,6 +118,19 @@ public class LedgerService {
 
         // Call User Service via REST to restore credit limit
         userServiceClient.restoreCredit(repayment.getUserId(), repayment.getAmountDue());
+
+        // Publish Kafka Repayment Event
+        try {
+            RepaymentEvent event = RepaymentEvent.builder()
+                    .repaymentId(savedRepayment.getId())
+                    .userId(savedRepayment.getUserId())
+                    .amount(savedRepayment.getAmountDue())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            kafkaProducerService.sendRepaymentEvent(event);
+        } catch (Exception e) {
+            log.error("Failed to publish RepaymentEvent to Kafka: {}", e.getMessage());
+        }
 
         return savedRepayment;
     }

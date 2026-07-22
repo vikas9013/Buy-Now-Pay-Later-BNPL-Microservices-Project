@@ -39,6 +39,11 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
+		<!-- Spring Kafka for Event-Driven Messaging -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
 		<!-- Swagger / OpenAPI UI -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
