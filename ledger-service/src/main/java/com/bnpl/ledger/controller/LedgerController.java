@@ -17,6 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/ledger")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class LedgerController {
 

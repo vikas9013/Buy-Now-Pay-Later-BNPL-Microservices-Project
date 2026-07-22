@@ -12,22 +12,25 @@ public class NotificationConsumerService {
 
     @KafkaListener(topics = "bnpl-checkout-events", groupId = "notification-service-group")
     public void handleCheckoutNotification(CheckoutEvent event) {
-        log.info("----------------------------------------------------------------------");
-        log.info("📲 [SMS & EMAIL NOTIFICATION SENT]");
-        log.info("To User ID: {}", event.getUserId());
-        log.info("Message: 'Dear Customer, your BNPL checkout of ₹{} at {} was successful!'", 
-                event.getAmount(), event.getMerchantName());
-        log.info("Transaction ID: {}", event.getTransactionId());
-        log.info("----------------------------------------------------------------------");
+        String msg = "\n----------------------------------------------------------------------\n" +
+                     "📲 [SMS & EMAIL NOTIFICATION SENT]\n" +
+                     "To User ID: " + event.getUserId() + "\n" +
+                     "Message: 'Dear Customer, your BNPL checkout of ₹" + event.getAmount() + " at " + event.getMerchantName() + " was successful!'\n" +
+                     "Transaction ID: " + event.getTransactionId() + "\n" +
+                     "----------------------------------------------------------------------\n";
+        System.out.println(msg);
+        log.info(msg);
     }
 
     @KafkaListener(topics = "bnpl-repayment-events", groupId = "notification-service-group")
     public void handleRepaymentNotification(RepaymentEvent event) {
-        log.info("----------------------------------------------------------------------");
-        log.info("📲 [SMS & EMAIL NOTIFICATION SENT]");
-        log.info("To User ID: {}", event.getUserId());
-        log.info("Message: 'Dear Customer, thank you! Your BNPL repayment of ₹{} was received.'", event.getAmount());
-        log.info("Repayment ID: {}", event.getRepaymentId());
-        log.info("----------------------------------------------------------------------");
+        String msg = "\n----------------------------------------------------------------------\n" +
+                     "📲 [SMS & EMAIL NOTIFICATION SENT]\n" +
+                     "To User ID: " + event.getUserId() + "\n" +
+                     "Message: 'Dear Customer, thank you! Your BNPL repayment of ₹" + event.getAmount() + " was received.'\n" +
+                     "Repayment ID: " + event.getRepaymentId() + "\n" +
+                     "----------------------------------------------------------------------\n";
+        System.out.println(msg);
+        log.info(msg);
     }
 }

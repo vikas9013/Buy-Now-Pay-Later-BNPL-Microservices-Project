@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNPL PayLater | Next-Gen Fintech Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0b10;
+            --card-bg: rgba(22, 26, 38, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary-accent: #7c3aed;
+            --primary-glow: rgba(124, 58, 237, 0.4);
+            --success-color: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.3);
+            --warning-color: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            padding-bottom: 50px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(10, 11, 16, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #7c3aed, #10b981);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(to right, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .user-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success-color);
+            border-radius: 20px;
+            font-size: 14px;
+            color: var(--success-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success-color);
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .credit-card-widget {
+            background: linear-gradient(135deg, #1e1b4b 0%, #311042 50%, #064e3b 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            margin-bottom: 24px;
+        }
+
+        .card-brand {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .card-balance-section {
+            margin: 24px 0 16px 0;
+        }
+
+        .balance-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .balance-amount {
+            font-size: 36px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 4px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            width: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .card-footer-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-accent);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--primary-accent), #6d28d9);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--primary-glow);
+        }
+
+        .merchant-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 16px;
+        }
+
+        .product-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 18px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .product-card:hover {
+            border-color: var(--primary-accent);
+            transform: translateY(-4px);
+        }
+
+        .product-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .product-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .product-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--success-color);
+            margin-bottom: 12px;
+        }
+
+        .btn-bnpl {
+            width: 100%;
+            padding: 10px;
+            background: rgba(124, 58, 237, 0.15);
+            border: 1px solid var(--primary-accent);
+            color: #fff;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-bnpl:hover {
+            background: var(--primary-accent);
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .history-table th, .history-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        .history-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success-color);
+        }
+
+        .repayment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            margin-bottom: 12px;
+        }
+
+        .btn-repay {
+            padding: 8px 16px;
+            background: var(--success-color);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #kafkaBanner {
+            display: none;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            padding: 16px 24px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 25px var(--success-glow);
+            animation: slideDown 0.4s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <div class="logo-badge">⚡</div>
+            <div class="logo-text">BNPL PayLater</div>
+        </div>
+        <div class="user-status-pill">
+            <div class="status-dot"></div>
+            <span id="headerUserName">Vikas Singh Rawat</span>
+        </div>
+    </header>
+
+    <div style="max-width: 1280px; margin: 20px auto 0 auto; padding: 0 20px;">
+        <div id="kafkaBanner">
+            <strong>📲 Live Event Streamed:</strong> <span id="kafkaMsg"></span>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div>
+            <div class="credit-card-widget">
+                <div class="card-brand">
+                    <span>VIRTUAL BNPL CARD</span>
+                    <span>ACTIVE</span>
+                </div>
+                <div class="card-balance-section">
+                    <div class="balance-label">Available Credit Limit</div>
+                    <div class="balance-amount" id="availableCreditDisplay">₹10,000.00</div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="creditProgressBar" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div class="card-footer-info">
+                    <span>Total Limit: ₹<span id="totalLimitDisplay">10,000.00</span></span>
+                    <span id="cardHolderName">Vikas Singh Rawat</span>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">User Onboarding</div>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="inputName" class="form-control" value="Vikas Singh Rawat">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="inputEmail" class="form-control" value="vikas.rawat@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" id="inputPhone" class="form-control" value="9876543210">
+                </div>
+                <button class="btn-primary" onclick="onboardUser()">Onboard User & Get Credit</button>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+
+            <div class="glass-card">
+                <div class="card-title">
+                    <span>🛍️ BNPL Storefront (0% Interest in 30 Days)</span>
+                </div>
+                <div class="merchant-grid">
+                    <div class="product-card">
+                        <div class="product-icon">🎧</div>
+                        <div class="product-name">Wireless Headphones</div>
+                        <div class="product-price">₹2,499.00</div>
+                        <button class="btn-bnpl" onclick="processCheckout('Wireless Headphones', 2499)">Pay Later ₹2,499</button>
+                    </div>
+
+                    <div class="product-card">
+                        <div class="product-icon">⌚</div>
+                        <div class="product-name">Smartwatch Pro</div>
+                        <div class="product-price">₹4,999.00</div>
+                        <button class="btn-bnpl" onclick="processCheckout('Smartwatch Pro', 4999)">Pay Later ₹4,999</button>
+                    </div>
+
+                    <div class="product-card">
+                        <div class="product-icon">👟</div>
+                        <div class="product-name">Running Sneakers</div>
+                        <div class="product-price">₹3,200.00</div>
+                        <button class="btn-bnpl" onclick="processCheckout('Running Sneakers', 3200)">Pay Later ₹3,200</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">💳 Pending Repayments</div>
+                <div id="repaymentsContainer">
+                    <p style="color: var(--text-muted); font-size: 14px;">No pending repayments. Make a BNPL purchase above!</p>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">📜 Transaction History</div>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Merchant</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionsTbody">
+                        <tr>
+                            <td colspan="4" style="color: var(--text-muted); text-align: center;">No transactions recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const USER_SERVICE_URL = 'http://localhost:8081/api/users';
+        const LEDGER_SERVICE_URL = 'http://localhost:8082/api/ledger';
+
+        let currentUserId = null;
+
+        async function onboardUser() {
+            const fullName = document.getElementById('inputName').value;
+            const email = document.getElementById('inputEmail').value;
+            const phoneNumber = document.getElementById('inputPhone').value;
+
+            try {
+                const response = await fetch(`${USER_SERVICE_URL}/onboard`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fullName, email, phoneNumber })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUserId = data.id;
+                    document.getElementById('headerUserName').innerText = data.fullName;
+                    document.getElementById('cardHolderName').innerText = data.fullName;
+                    showBanner(`User ${data.fullName} onboarded! ₹10,000 credit limit assigned.`);
+                    await updateCreditDisplay();
+                    await fetchTransactions();
+                    await fetchRepayments();
+                } else {
+                    showBanner("User already exists. Loading account...");
+                }
+            } catch (err) {
+                console.error("Backend Error:", err);
+            }
+        }
+
+        async function updateCreditDisplay() {
+            if (!currentUserId) return;
+            try {
+                const response = await fetch(`${USER_SERVICE_URL}/${currentUserId}/credit`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const available = parseFloat(data.availableCredit);
+                    const total = parseFloat(data.totalCreditLimit);
+
+                    document.getElementById('availableCreditDisplay').innerText = `₹${available.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                    document.getElementById('totalLimitDisplay').innerText = total.toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+                    const percentage = (available / total) * 100;
+                    document.getElementById('creditProgressBar').style.width = `${percentage}%`;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function processCheckout(merchantName, amount) {
+            if (!currentUserId) {
+                await onboardUser();
+                if (!currentUserId) return;
+            }
+
+            try {
+                const response = await fetch(`${LEDGER_SERVICE_URL}/checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        amount: amount,
+                        merchantName: merchantName
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showBanner(`Checkout Successful! Purchased ${merchantName} for ₹${amount}. Event streamed via Kafka!`);
+                    await updateCreditDisplay();
+                    await fetchTransactions();
+                    await fetchRepayments();
+                } else {
+                    const errText = await response.text();
+                    alert("Checkout Failed: " + errText);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error connecting to ledger-service on Port 8082!");
+            }
+        }
+
+        async function fetchTransactions() {
+            if (!currentUserId) return;
+            try {
+                const response = await fetch(`${LEDGER_SERVICE_URL}/transactions/${currentUserId}`);
+                if (response.ok) {
+                    const list = await response.json();
+                    const tbody = document.getElementById('transactionsTbody');
+                    if (list.length === 0) return;
+
+                    tbody.innerHTML = list.map(t => `
+                        <tr>
+                            <td><strong>${t.merchantName}</strong></td>
+                            <td>₹${parseFloat(t.amount).toFixed(2)}</td>
+                            <td>${new Date(t.transactionDate).toLocaleDateString()}</td>
+                            <td><span class="status-badge status-success">${t.status}</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function fetchRepayments() {
+            if (!currentUserId) return;
+            try {
+                const response = await fetch(`${LEDGER_SERVICE_URL}/repayments/pending/${currentUserId}`);
+                if (response.ok) {
+                    const list = await response.json();
+                    const container = document.getElementById('repaymentsContainer');
+                    
+                    if (list.length === 0) {
+                        container.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">No pending repayments. All clear!</p>';
+                        return;
+                    }
+
+                    container.innerHTML = list.map(r => `
+                        <div class="repayment-item">
+                            <div>
+                                <strong>Amount Due: ₹${parseFloat(r.amountDue).toFixed(2)}</strong>
+                                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Due Date: ${r.dueDate}</div>
+                            </div>
+                            <button class="btn-repay" onclick="payBill('${r.id}', ${r.amountDue})">Pay Now</button>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function payBill(repaymentId, amount) {
+            try {
+                const response = await fetch(`${LEDGER_SERVICE_URL}/repay`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repaymentId, amount })
+                });
+
+                if (response.ok) {
+                    showBanner(`Repayment of ₹${amount} successful! Credit limit restored.`);
+                    await updateCreditDisplay();
+                    await fetchRepayments();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function showBanner(message) {
+            const banner = document.getElementById('kafkaBanner');
+            document.getElementById('kafkaMsg').innerText = message;
+            banner.style.display = 'block';
+            setTimeout(() => { banner.style.display = 'none'; }, 6000);
+        }
+
+        window.onload = () => { onboardUser(); };
+    </script>
+</body>
+</html>
