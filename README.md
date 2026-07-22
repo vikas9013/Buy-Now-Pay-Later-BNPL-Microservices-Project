@@ -128,7 +128,7 @@ Host: localhost:8081
 Content-Type: application/json
 
 {
-  "fullName": "Vikas Kumar",
+  "fullName": "Vikas Singh Rawat",
   "email": "vikas@example.com",
   "phoneNumber": "9876543210"
 }
@@ -181,6 +181,6 @@ Content-Type: application/json
 
 ## 📝 License & Author
 
-Developed by **Vikas Kumar** as a showcase project for Fintech Software Engineering roles.
+Developed by **Vikas Singh Rawat** as a showcase project for Fintech Software Engineering roles.
 
 Distributed under the MIT License. See `LICENSE` for more information.
