@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -14,9 +13,12 @@ import java.util.UUID;
 public class CheckoutResponse {
     private UUID transactionId;
     private UUID userId;
-    private BigDecimal amount;
+    private BigDecimal principalAmount;
+    private BigDecimal interestRatePercent;
+    private BigDecimal totalAmountWithInterest;
+    private Integer tenureMonths;
+    private BigDecimal monthlyInstallment;
     private String merchantName;
     private LocalDateTime transactionDate;
     private TransactionStatus status;
-    private LocalDate repaymentDueDate;
 }

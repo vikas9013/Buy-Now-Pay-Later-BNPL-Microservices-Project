@@ -23,7 +23,7 @@ public class Repayment {
     @Column(nullable = false)
     private UUID userId;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "transaction_id", nullable = false)
     private Transaction transaction;
 

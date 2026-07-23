@@ -1,5 +1,7 @@
 package com.bnpl.ledger.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -20,4 +22,8 @@ public class CheckoutRequest {
 
     @NotBlank(message = "Merchant name is required")
     private String merchantName;
+
+    @Min(value = 1, message = "Tenure must be at least 1 month")
+    @Max(value = 12, message = "Maximum EMI tenure is 12 months")
+    private Integer tenureMonths = 1; // Default to 1 month (Pay in 30 days @ 0% interest)
 }

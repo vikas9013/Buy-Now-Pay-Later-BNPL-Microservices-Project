@@ -12,6 +12,6 @@ import java.util.UUID;
 @Repository
 public interface RepaymentRepository extends JpaRepository<Repayment, UUID> {
     List<Repayment> findByIsPaidFalseAndDueDateBefore(LocalDate date);
-    Optional<Repayment> findByTransactionId(UUID transactionId);
+    List<Repayment> findByTransactionId(UUID transactionId);
     List<Repayment> findByUserIdAndIsPaidFalse(UUID userId);
 }
