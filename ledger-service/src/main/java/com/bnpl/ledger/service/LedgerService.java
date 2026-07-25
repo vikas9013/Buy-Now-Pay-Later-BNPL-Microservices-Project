@@ -14,6 +14,8 @@ import com.bnpl.ledger.repository.RepaymentRepository;
 import com.bnpl.ledger.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -34,88 +37,113 @@ public class LedgerService {
     private final UserServiceClient userServiceClient;
     private final KafkaProducerService kafkaProducerService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RedissonClient redissonClient;
+
     @Transactional
     public CheckoutResponse processCheckout(CheckoutRequest request) {
-        int tenure = (request.getTenureMonths() != null && request.getTenureMonths() > 0) 
-                ? request.getTenureMonths() : 1;
+        String lockKey = "lock:checkout:user:" + request.getUserId();
+        RLock lock = (redissonClient != null) ? redissonClient.getLock(lockKey) : null;
 
-        // 1. Calculate Interest Rate according to tenure (Up to 12 months)
-        BigDecimal interestRatePercent = getInterestRateForTenure(tenure);
-        BigDecimal interestAmount = request.getAmount()
-                .multiply(interestRatePercent)
-                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        try {
+            if (lock != null) {
+                boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+                if (!isLocked) {
+                    throw new IllegalStateException("Could not acquire lock for user checkout. Concurrent request in progress.");
+                }
+                log.info("🔒 Redisson Lock acquired for checkout: {}", lockKey);
+            }
 
-        BigDecimal totalAmountWithInterest = request.getAmount().add(interestAmount);
-        BigDecimal monthlyInstallment = totalAmountWithInterest
-                .divide(new BigDecimal(tenure), 2, RoundingMode.HALF_UP);
+            int tenure = (request.getTenureMonths() != null && request.getTenureMonths() > 0) 
+                    ? request.getTenureMonths() : 1;
 
-        // 2. Call User Service via REST to check credit limit against total amount
-        CreditAccountResponse creditAccount = userServiceClient.getCreditAccount(request.getUserId());
+            // 1. Calculate Interest Rate according to tenure (Up to 12 months)
+            BigDecimal interestRatePercent = getInterestRateForTenure(tenure);
+            BigDecimal interestAmount = request.getAmount()
+                    .multiply(interestRatePercent)
+                    .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
 
-        if (!"ACTIVE".equalsIgnoreCase(creditAccount.getAccountStatus())) {
-            throw new IllegalStateException("User account is not ACTIVE. Current status: " + creditAccount.getAccountStatus());
-        }
+            BigDecimal totalAmountWithInterest = request.getAmount().add(interestAmount);
+            BigDecimal monthlyInstallment = totalAmountWithInterest
+                    .divide(new BigDecimal(tenure), 2, RoundingMode.HALF_UP);
 
-        if (creditAccount.getAvailableCredit().compareTo(request.getAmount()) < 0) {
-            throw new IllegalArgumentException("Insufficient credit limit! Available: ₹" + creditAccount.getAvailableCredit());
-        }
+            // 2. Call User Service via REST to check credit limit against total amount
+            CreditAccountResponse creditAccount = userServiceClient.getCreditAccount(request.getUserId());
 
-        // 3. Call User Service via REST to deduct principal amount
-        userServiceClient.deductCredit(request.getUserId(), request.getAmount());
+            if (!"ACTIVE".equalsIgnoreCase(creditAccount.getAccountStatus())) {
+                throw new IllegalStateException("User account is not ACTIVE. Current status: " + creditAccount.getAccountStatus());
+            }
 
-        // 4. Save Transaction Record
-        Transaction transaction = Transaction.builder()
-                .userId(request.getUserId())
-                .amount(request.getAmount())
-                .merchantName(request.getMerchantName() + " (" + tenure + "M EMI @ " + interestRatePercent + "% Int)")
-                .transactionDate(LocalDateTime.now())
-                .status(TransactionStatus.SUCCESS)
-                .build();
+            if (creditAccount.getAvailableCredit().compareTo(request.getAmount()) < 0) {
+                throw new IllegalArgumentException("Insufficient credit limit! Available: ₹" + creditAccount.getAvailableCredit());
+            }
 
-        Transaction savedTransaction = transactionRepository.save(transaction);
+            // 3. Call User Service via REST to deduct principal amount
+            userServiceClient.deductCredit(request.getUserId(), request.getAmount());
 
-        // 5. Generate EMI Repayment Schedule for 1 to 12 months
-        for (int i = 1; i <= tenure; i++) {
-            LocalDate dueDate = LocalDate.now().plusMonths(i);
-
-            Repayment repayment = Repayment.builder()
+            // 4. Save Transaction Record
+            Transaction transaction = Transaction.builder()
                     .userId(request.getUserId())
-                    .transaction(savedTransaction)
-                    .amountDue(monthlyInstallment)
-                    .dueDate(dueDate)
-                    .isPaid(false)
-                    .lateFeeApplied(BigDecimal.ZERO)
+                    .amount(request.getAmount())
+                    .merchantName(request.getMerchantName() + " (" + tenure + "M EMI @ " + interestRatePercent + "% Int)")
+                    .transactionDate(LocalDateTime.now())
+                    .status(TransactionStatus.SUCCESS)
                     .build();
 
-            repaymentRepository.save(repayment);
-        }
+            Transaction savedTransaction = transactionRepository.save(transaction);
 
-        // 6. Publish Kafka Event asynchronously
-        try {
-            CheckoutEvent event = CheckoutEvent.builder()
+            // 5. Generate EMI Repayment Schedule for 1 to 12 months
+            for (int i = 1; i <= tenure; i++) {
+                LocalDate dueDate = LocalDate.now().plusMonths(i);
+
+                Repayment repayment = Repayment.builder()
+                        .userId(request.getUserId())
+                        .transaction(savedTransaction)
+                        .amountDue(monthlyInstallment)
+                        .dueDate(dueDate)
+                        .isPaid(false)
+                        .lateFeeApplied(BigDecimal.ZERO)
+                        .build();
+
+                repaymentRepository.save(repayment);
+            }
+
+            // 6. Publish Kafka Event asynchronously
+            try {
+                CheckoutEvent event = CheckoutEvent.builder()
+                        .transactionId(savedTransaction.getId())
+                        .userId(savedTransaction.getUserId())
+                        .amount(savedTransaction.getAmount())
+                        .merchantName(savedTransaction.getMerchantName())
+                        .timestamp(savedTransaction.getTransactionDate())
+                        .build();
+                kafkaProducerService.sendCheckoutEvent(event);
+            } catch (Exception e) {
+                log.error("Failed to publish CheckoutEvent to Kafka: {}", e.getMessage());
+            }
+
+            return CheckoutResponse.builder()
                     .transactionId(savedTransaction.getId())
                     .userId(savedTransaction.getUserId())
-                    .amount(savedTransaction.getAmount())
+                    .principalAmount(request.getAmount())
+                    .interestRatePercent(interestRatePercent)
+                    .totalAmountWithInterest(totalAmountWithInterest)
+                    .tenureMonths(tenure)
+                    .monthlyInstallment(monthlyInstallment)
                     .merchantName(savedTransaction.getMerchantName())
-                    .timestamp(savedTransaction.getTransactionDate())
+                    .transactionDate(savedTransaction.getTransactionDate())
+                    .status(savedTransaction.getStatus())
                     .build();
-            kafkaProducerService.sendCheckoutEvent(event);
-        } catch (Exception e) {
-            log.error("Failed to publish CheckoutEvent to Kafka: {}", e.getMessage());
-        }
 
-        return CheckoutResponse.builder()
-                .transactionId(savedTransaction.getId())
-                .userId(savedTransaction.getUserId())
-                .principalAmount(request.getAmount())
-                .interestRatePercent(interestRatePercent)
-                .totalAmountWithInterest(totalAmountWithInterest)
-                .tenureMonths(tenure)
-                .monthlyInstallment(monthlyInstallment)
-                .merchantName(savedTransaction.getMerchantName())
-                .transactionDate(savedTransaction.getTransactionDate())
-                .status(savedTransaction.getStatus())
-                .build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Checkout interrupted", e);
+        } finally {
+            if (lock != null && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+                log.info("🔓 Redisson Lock released: {}", lockKey);
+            }
+        }
     }
 
     private BigDecimal getInterestRateForTenure(int tenureMonths) {

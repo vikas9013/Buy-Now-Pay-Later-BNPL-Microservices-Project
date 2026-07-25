@@ -1,48 +1,49 @@
-# 💳 Buy Now, Pay Later (BNPL) & Flexible EMI - Event-Driven Microservices Backend
+# 💳 Buy Now, Pay Later (BNPL) & Flexible EMI - Enterprise Fintech Microservices
 
 ![Java](https://img.shields.io/badge/Java-17-orange.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2.4-brightgreen.svg)
+![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-Gateway_%26_Eureka-blue.svg)
 ![Spring Security](https://img.shields.io/badge/OAuth_2.0-JWT_Secured-blue.svg)
+![Redis](https://img.shields.io/badge/Redis-Idempotency_%26_Locks-red.svg)
 ![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-Event--Driven-red.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)
 ![Swagger](https://img.shields.io/badge/Swagger-OpenAPI_3-85EA2D.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-A production-grade, pure backend **Buy Now, Pay Later (BNPL) & Flexible EMI** distributed system built with **Java 17**, **Spring Boot 3**, **Spring Security (OAuth 2.0 / JWT)**, **Apache Kafka**, **Spring WebFlux (WebClient)**, **PostgreSQL**, and **Docker**.
+A production-grade, pure backend **Buy Now, Pay Later (BNPL) & Flexible EMI** distributed system built with **Java 17**, **Spring Boot 3**, **Redis (Idempotency & Redisson Distributed Locks)**, **Spring Cloud (API Gateway & Eureka Discovery)**, **Spring Security (OAuth 2.0 / JWT)**, **Apache Kafka**, **PostgreSQL**, and **Docker**.
 
 ---
 
-## 📌 Architectural Core Focus
+## 📌 Architectural Highlights
 
-This project is strictly focused on backend engineering principles:
-* **Microservices Decoupling & Isolation:** Database-per-service pattern (`user_db` and `ledger_db`).
-* **Stateless Security:** JWT authentication and authorization across microservices.
-* **Event-Driven Architecture (EDA):** Asynchronous event streaming using Apache Kafka.
-* **Resilient Financial Calculations:** EMI interest calculations up to 12 months, transactional credit management, and automated late fee CRON scheduling.
+* **Single Entry Point (`api-gateway` @ Port 8080):** Spring Cloud API Gateway routes and load-balances all client traffic.
+* **Dynamic Service Discovery (`discovery-server` @ Port 8761):** Netflix Eureka registry eliminates hardcoded service URLs.
+* **Redis Idempotency Engine (`X-Idempotency-Key`):** Prevents double-charging during network retries or accidental double-clicks.
+* **Redisson Distributed Locks (`Redlock`):** Prevents credit race conditions during high-concurrency checkout requests.
+* **Microservices Isolation:** Strict Database-per-Service pattern (`user_db` and `ledger_db`).
+* **Stateless OAuth 2.0 / JWT Security:** HMAC-SHA256 token issuance and Bearer token interception filter.
+* **Event-Driven Architecture (EDA):** Asynchronous message publishing & consumption via Apache Kafka (`bnpl-checkout-events`, `bnpl-repayment-events`).
+* **Flexible EMI Calculation Engine:** Supports 1 to 12-month installment schedules with automated interest calculation.
+* **Automated Late Fee Scheduler:** Spring `@Scheduled` CRON job for enforcing late fees on overdue accounts.
 
 ---
 
-## 🔒 OAuth 2.0 & JWT Security Flow
+## 🛡️ Enterprise Transaction Safety (Redis & Redisson)
 
-The system implements stateless **JWT Bearer Token Authentication**:
+1. **Idempotency Engine (`X-Idempotency-Key` Header):**
+   * Clients pass an `X-Idempotency-Key: <unique-key>` header with `POST /api/ledger/checkout`.
+   * Redis checks if the key was already processed. If found, it returns the cached transaction response in **<2ms** without re-executing or double-charging!
 
-1. **Authentication Server (`user-service` @ Port 8081):**
-   * Exposes `POST /api/auth/register` and `POST /api/auth/login`.
-   * Encrypts user credentials via `BCryptPasswordEncoder`.
-   * Issues signed **HMAC-SHA256 JWT Tokens** upon successful login.
-
-2. **Resource Server (`ledger-service` @ Port 8082):**
-   * Employs `JwtAuthenticationFilter` to validate Bearer tokens (`Authorization: Bearer <token>`).
-   * Protects credit deduction, checkout, and repayment endpoints from unauthorized access.
+2. **Distributed Locking (Redisson `RLock`):**
+   * Synchronizes credit balance deduction (`lock:credit:<userId>`) and checkout execution using Redis.
+   * Ensures parallel requests from the same user execute sequentially without memory corruption or negative credit balances.
 
 ---
 
 ## 📅 Flexible EMI & Interest Rate Matrix
 
-Customers can select flexible repayment tenures at checkout:
-
-| Tenure | Repayment Plan | Interest Rate | Database Schedule Created |
+| Tenure | Repayment Plan | Interest Rate | Installments |
 | :--- | :--- | :--- | :--- |
 | **1 Month** | Pay in 30 Days | **0% Interest** | 1 Full Payment |
 | **3 Months** | Low-Cost EMI | **5% Total Interest** | 3 Monthly Installments |
@@ -52,74 +53,72 @@ Customers can select flexible repayment tenures at checkout:
 
 ---
 
-## 🏗️ Backend System Architecture
+## 🏗️ System Architecture
 
 ```
-                            +---------------------------------------+
-                            |         Postman / Swagger UI          |
-                            +---------------------------------------+
-                                      /                   \
-                        1. POST /api/auth/login          2. POST /api/ledger/checkout
-                      (Get Bearer JWT Token)             [Header: Authorization: Bearer token]
-                                    /                       \
-                                   v                         v
-                     +---------------------------+     +---------------------------+
-                     |       user-service        |     |      ledger-service       |
-                     |  (Auth & Credit Manager)  |     |   (Resource & EMI Server) |
-                     +---------------------------+     +---------------------------+
-                                   ^                                 |
-                                   |                                 | Publishes Events
-                                   |                                 v
-                     =================================================================
-                                            APACHE KAFKA BROKER
-                     Topics: [bnpl-checkout-events] [bnpl-repayment-events]
-                     =================================================================
-                                   |                                 |
-                     Consumes      |                                 | Consumes
-                     Events        v                                 v Events
-                     +---------------------------+     +---------------------------+
-                     |       user-service        |     |   notification-service    |
-                     |  (Credit Sync & Updates)  |     |        (Port 8083)        |
-                     +---------------------------+     +---------------------------+
-                                   |                                 |
-                        [ PostgreSQL: user_db ]             [ Logs & Alerts ]
+                                [ Client / Postman ]
+                                         |
+                            Header: [X-Idempotency-Key]
+                                         |
+                                         v
+                      +------------------------------------+
+                      |     api-gateway (Port 8080)        |
+                      +------------------------------------+
+                                 /            \
+                (Dynamic Route) /              \ (Dynamic Route)
+                               v                v
+                 +-------------------+    +-------------------+
+                 |   user-service    |    |  ledger-service   |
+                 |    (Port 8081)    |    |    (Port 8082)    |
+                 +-------------------+    +-------------------+
+                     /         \                /       \
+        (Redisson RLock)      (PostgreSQL)  (Redis Cache) (PostgreSQL)
+                   /             \            /           \
+                  v               v          v             v
+             [ REDIS:6379 ]  [ user_db ]  [ Idempotency ] [ ledger_db ]
+                                       \        |
+                                        v       v
+                             APACHE KAFKA BROKER
+                Topics: [bnpl-checkout-events] [bnpl-repayment-events]
+                                       |
+                                       v
+                      +------------------------------------+
+                      |   notification-service (Port 8083) |
+                      +------------------------------------+
 ```
 
 ---
 
-## ⚙️ Microservices Breakdown
+## 📡 Gateway API Reference (`http://localhost:8080`)
 
-### 1. 👤 `user-service` (Port 8081)
-*   **Database:** `user_db`
-*   **Responsibilities:** Registration, Login, JWT Token Generation, Credit Account Management (Default ₹10,000 limit), Balance Deduction & Restoration.
+### 🔐 Authentication & Users (`lb://USER-SERVICE`)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `http://localhost:8080/api/auth/register` | Register new user & issue JWT Token |
+| `POST` | `http://localhost:8080/api/auth/login` | Authenticate user & issue JWT Token |
+| `GET` | `http://localhost:8080/api/users/{userId}/credit` | Fetch credit account details & balance |
 
-### 2. 🧾 `ledger-service` (Port 8082)
-*   **Database:** `ledger_db`
-*   **Responsibilities:** BNPL Checkout Execution, **1 to 12 Month EMI Schedule Generation**, Repayment Processing, Inter-Service REST WebClient Calls, and Automated Late Fee `@Scheduled` CRON Jobs.
-
-### 3. 📲 `notification-service` (Port 8083)
-*   **Responsibilities:** Event Consumer listening asynchronously to Kafka topics (`bnpl-checkout-events`, `bnpl-repayment-events`) and logging simulated alerts.
+### 💳 Ledger & EMI Operations (`lb://LEDGER-SERVICE`)
+| Method | Endpoint | Headers | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `http://localhost:8080/api/ledger/checkout` | `X-Idempotency-Key` (Optional) | Execute Idempotent BNPL / EMI checkout |
+| `POST` | `http://localhost:8080/api/ledger/repay` | `X-Idempotency-Key` (Optional) | Process repayment for an installment |
+| `GET` | `http://localhost:8080/api/ledger/transactions/{userId}` | - | Get transaction history |
+| `GET` | `http://localhost:8080/api/ledger/repayments/pending/{userId}` | - | Get pending EMI installment dues |
 
 ---
 
-## 🚀 Quick Start (Docker Compose)
+## 🚀 Quick Start
 
-Run the entire microservices stack (Zookeeper + Kafka + PostgreSQL + 3 Microservices) with one command:
+### Option A: PowerShell 1-Click Launch (All Microservices)
+```powershell
+.\run-all.ps1
+```
 
+### Option B: Docker Compose (Zookeeper + Kafka + Redis + Postgres + Services)
 ```bash
 docker compose up --build
 ```
-
----
-
-## 📖 Interactive Swagger UI Testing
-
-Backend endpoints are documented and testable interactively via Swagger UI:
-
-| Service | Port | Swagger Dashboard URL |
-| :--- | :--- | :--- |
-| **User Service** | `8081` | [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) |
-| **Ledger Service** | `8082` | [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html) |
 
 ---
 

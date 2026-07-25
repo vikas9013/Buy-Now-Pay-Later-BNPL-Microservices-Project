@@ -13,21 +13,29 @@ import com.bnpl.user.repository.CreditAccountRepository;
 import com.bnpl.user.repository.UserRepository;
 import com.bnpl.user.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
     private final CreditAccountRepository creditAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RedissonClient redissonClient;
 
     private static final BigDecimal DEFAULT_CREDIT_LIMIT = new BigDecimal("10000.00");
 
@@ -47,7 +55,6 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
-        // Assign credit account
         CreditAccount account = CreditAccount.builder()
                 .user(savedUser)
                 .totalCreditLimit(DEFAULT_CREDIT_LIMIT)
@@ -122,36 +129,78 @@ public class UserService {
 
     @Transactional
     public CreditAccountResponse deductCredit(UUID userId, BigDecimal amount) {
-        CreditAccount account = creditAccountRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Credit account not found for userId: " + userId));
+        String lockKey = "lock:credit:" + userId;
+        RLock lock = (redissonClient != null) ? redissonClient.getLock(lockKey) : null;
 
-        if (account.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Account is not active. Status: " + account.getAccountStatus());
+        try {
+            if (lock != null) {
+                boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+                if (!isLocked) {
+                    throw new IllegalStateException("Could not acquire lock for user credit account. Please try again.");
+                }
+                log.info("🔒 Redisson Lock acquired for user credit deduction: {}", lockKey);
+            }
+
+            CreditAccount account = creditAccountRepository.findByUserId(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Credit account not found for userId: " + userId));
+
+            if (account.getAccountStatus() != AccountStatus.ACTIVE) {
+                throw new IllegalStateException("Account is not active. Status: " + account.getAccountStatus());
+            }
+
+            if (account.getAvailableCredit().compareTo(amount) < 0) {
+                throw new IllegalArgumentException("Insufficient credit limit. Available: " + account.getAvailableCredit());
+            }
+
+            account.setAvailableCredit(account.getAvailableCredit().subtract(amount));
+            CreditAccount updated = creditAccountRepository.save(account);
+
+            return mapToResponse(updated);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Credit deduction interrupted", e);
+        } finally {
+            if (lock != null && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+                log.info("🔓 Redisson Lock released: {}", lockKey);
+            }
         }
-
-        if (account.getAvailableCredit().compareTo(amount) < 0) {
-            throw new IllegalArgumentException("Insufficient credit limit. Available: " + account.getAvailableCredit());
-        }
-
-        account.setAvailableCredit(account.getAvailableCredit().subtract(amount));
-        CreditAccount updated = creditAccountRepository.save(account);
-
-        return mapToResponse(updated);
     }
 
     @Transactional
     public CreditAccountResponse restoreCredit(UUID userId, BigDecimal amount) {
-        CreditAccount account = creditAccountRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Credit account not found for userId: " + userId));
+        String lockKey = "lock:credit:" + userId;
+        RLock lock = (redissonClient != null) ? redissonClient.getLock(lockKey) : null;
 
-        account.setAvailableCredit(account.getAvailableCredit().add(amount));
-        if (account.getAvailableCredit().compareTo(account.getTotalCreditLimit()) > 0) {
-            account.setAvailableCredit(account.getTotalCreditLimit());
+        try {
+            if (lock != null) {
+                boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+                if (!isLocked) {
+                    throw new IllegalStateException("Could not acquire lock for user credit account. Please try again.");
+                }
+                log.info("🔒 Redisson Lock acquired for user credit restoration: {}", lockKey);
+            }
+
+            CreditAccount account = creditAccountRepository.findByUserId(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Credit account not found for userId: " + userId));
+
+            account.setAvailableCredit(account.getAvailableCredit().add(amount));
+            if (account.getAvailableCredit().compareTo(account.getTotalCreditLimit()) > 0) {
+                account.setAvailableCredit(account.getTotalCreditLimit());
+            }
+
+            CreditAccount updated = creditAccountRepository.save(account);
+
+            return mapToResponse(updated);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Credit restoration interrupted", e);
+        } finally {
+            if (lock != null && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+                log.info("🔓 Redisson Lock released: {}", lockKey);
+            }
         }
-
-        CreditAccount updated = creditAccountRepository.save(account);
-
-        return mapToResponse(updated);
     }
 
     private CreditAccountResponse mapToResponse(CreditAccount account) {

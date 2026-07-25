@@ -5,6 +5,7 @@ import com.bnpl.ledger.dto.CheckoutResponse;
 import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
 import com.bnpl.ledger.entity.Transaction;
+import com.bnpl.ledger.service.IdempotencyService;
 import com.bnpl.ledger.service.LedgerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,17 +23,50 @@ import java.util.UUID;
 public class LedgerController {
 
     private final LedgerService ledgerService;
+    private final IdempotencyService idempotencyService;
 
     @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(@Valid @RequestBody CheckoutRequest request) {
+    public ResponseEntity<CheckoutResponse> checkout(
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CheckoutRequest request) {
+
+        // Check if Idempotency Key was already processed
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            CheckoutResponse cachedResponse = idempotencyService.getResponse(idempotencyKey, CheckoutResponse.class);
+            if (cachedResponse != null) {
+                return ResponseEntity.status(HttpStatus.OK).body(cachedResponse);
+            }
+        }
+
         CheckoutResponse response = ledgerService.processCheckout(request);
+
+        // Cache response in Redis with Idempotency Key
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            idempotencyService.saveResponse(idempotencyKey, response);
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/repay")
-    public ResponseEntity<Repayment> repay(@Valid @RequestBody RepaymentRequest request) {
-        Repayment repayment = ledgerService.processRepayment(request);
-        return ResponseEntity.ok(repayment);
+    public ResponseEntity<Repayment> repay(
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody RepaymentRequest request) {
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Repayment cachedResponse = idempotencyService.getResponse(idempotencyKey, Repayment.class);
+            if (cachedResponse != null) {
+                return ResponseEntity.status(HttpStatus.OK).body(cachedResponse);
+            }
+        }
+
+        Repayment response = ledgerService.processRepayment(request);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            idempotencyService.saveResponse(idempotencyKey, response);
+        }
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/transactions/{userId}")
@@ -41,7 +75,7 @@ public class LedgerController {
     }
 
     @GetMapping("/repayments/pending/{userId}")
-    public ResponseEntity<List<Repayment>> getPendingRepayments(@PathVariable UUID userId) {
+    public ResponseEntity<List<Repayment>> getUserPendingRepayments(@PathVariable UUID userId) {
         return ResponseEntity.ok(ledgerService.getUserPendingRepayments(userId));
     }
 }
