@@ -115,10 +115,15 @@ A production-grade, pure backend **Buy Now, Pay Later (BNPL) & Flexible EMI** di
 .\run-all.ps1
 ```
 
-### Option B: Docker Compose (Zookeeper + Kafka + Redis + Postgres + Services)
+### Option B: Docker Compose (Full Stack - Recommended)
 ```bash
-docker compose up --build
+# This will build and run all 5 microservices along with PostgreSQL, Redis, Kafka, and Zookeeper
+docker-compose up -d --build
 ```
+> **Note on Databases & Service Discovery:**
+> - The `init.sql` script will automatically create `user_db` and `ledger_db` in PostgreSQL on first boot.
+> - The microservices will take about 20 seconds to boot up and dynamically register with the Eureka `discovery-server`.
+> - Once registered, the `api-gateway` will automatically load-balance requests.
 
 ---
 
