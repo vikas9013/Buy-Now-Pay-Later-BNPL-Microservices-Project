@@ -239,4 +239,51 @@ public class LedgerService {
                 .orElseThrow(() -> new IllegalArgumentException("Repayment not found for ID: " + request.getRepaymentId()));
         return paymentGatewayService.createPaymentOrder(request, repayment);
     }
+
+    @Transactional
+    public String handleRazorpayWebhook(String payload, String signature) {
+        if (signature != null && !signature.isBlank()) {
+            boolean isValid = paymentGatewayService.verifyWebhookSignature(payload, signature);
+            if (!isValid) {
+                log.warn("❌ Rejected Razorpay webhook: Invalid X-Razorpay-Signature");
+                return "INVALID_SIGNATURE";
+            }
+        }
+
+        try {
+            org.json.JSONObject eventJson = new org.json.JSONObject(payload);
+            String eventType = eventJson.optString("event");
+            log.info("✅ Verified Razorpay Webhook Event: {}", eventType);
+
+            if ("payment.captured".equals(eventType) || "order.paid".equals(eventType)) {
+                org.json.JSONObject payloadObj = eventJson.optJSONObject("payload");
+                if (payloadObj != null) {
+                    org.json.JSONObject paymentObj = payloadObj.optJSONObject("payment");
+                    org.json.JSONObject entityObj = paymentObj != null ? paymentObj.optJSONObject("entity") : null;
+                    if (entityObj != null) {
+                        org.json.JSONObject notes = entityObj.optJSONObject("notes");
+                        if (notes != null && notes.has("repaymentId")) {
+                            UUID repaymentId = UUID.fromString(notes.getString("repaymentId"));
+                            Repayment repayment = repaymentRepository.findById(repaymentId).orElse(null);
+                            if (repayment != null && !repayment.isPaid()) {
+                                RepaymentRequest repayReq = new RepaymentRequest();
+                                repayReq.setRepaymentId(repaymentId);
+                                repayReq.setAmount(repayment.getAmountDue().add(repayment.getLateFeeApplied()));
+                                repayReq.setPaymentGateway("RAZORPAY");
+                                repayReq.setGatewayOrderId(entityObj.optString("order_id"));
+                                repayReq.setGatewayPaymentId(entityObj.optString("id"));
+                                repayReq.setPaymentMethod(entityObj.optString("method", "UPI"));
+                                processRepayment(repayReq);
+                                log.info("🎉 Webhook automatically settled Repayment ID: {}", repaymentId);
+                            }
+                        }
+                    }
+                }
+            }
+            return "PROCESSED";
+        } catch (Exception e) {
+            log.error("Error processing Razorpay webhook: {}", e.getMessage(), e);
+            return "ERROR";
+        }
+    }
 }

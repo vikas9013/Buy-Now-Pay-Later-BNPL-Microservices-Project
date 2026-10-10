@@ -4,7 +4,12 @@ import com.bnpl.ledger.dto.PaymentOrderRequest;
 import com.bnpl.ledger.dto.PaymentOrderResponse;
 import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
+import com.razorpay.Order;
+import com.razorpay.RazorpayClient;
+import com.razorpay.RazorpayException;
+import com.razorpay.Utils;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,8 +33,22 @@ public class PaymentGatewayService {
     @Value("${payment.gateway.razorpay.key-secret:bnplSecretKey2026Secure}")
     private String razorpayKeySecret;
 
+    @Value("${payment.gateway.razorpay.webhook-secret:bnplWebhookSecret2026}")
+    private String razorpayWebhookSecret;
+
     @Value("${payment.gateway.stripe.api-key:sk_test_bnpl2026demo}")
     private String stripeApiKey;
+
+    /**
+     * Checks whether authentic live Razorpay credentials are configured.
+     */
+    public boolean isLiveRazorpayConfigured() {
+        return razorpayKeyId != null
+                && razorpayKeyId.startsWith("rzp_")
+                && !razorpayKeyId.contains("demo")
+                && razorpayKeySecret != null
+                && !razorpayKeySecret.contains("demo");
+    }
 
     /**
      * Creates an authentic payment order / payment intent for an EMI repayment installment.
@@ -53,11 +72,43 @@ public class PaymentGatewayService {
             log.info("💳 [STRIPE PAYMENT INTENT CREATED] Order ID: {}, Repayment ID: {}, Amount: ₹{}",
                     orderId, repayment.getId(), totalDue);
         } else {
-            // Default to Razorpay
-            orderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 18);
-            keyId = razorpayKeyId;
-            log.info("💳 [RAZORPAY ORDER CREATED] Order ID: {}, Repayment ID: {}, Amount: ₹{} ({} paise)",
-                    orderId, repayment.getId(), totalDue, amountInSubunits);
+            // Razorpay Gateway
+            if (isLiveRazorpayConfigured()) {
+                try {
+                    RazorpayClient razorpayClient = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
+
+                    JSONObject orderRequest = new JSONObject();
+                    orderRequest.put("amount", amountInSubunits); // Amount in paise
+                    orderRequest.put("currency", "INR");
+                    orderRequest.put("receipt", "rcpt_repay_" + repayment.getId());
+
+                    JSONObject notes = new JSONObject();
+                    notes.put("repaymentId", String.valueOf(repayment.getId()));
+                    if (repayment.getTransaction() != null) {
+                        notes.put("transactionId", String.valueOf(repayment.getTransaction().getId()));
+                    }
+                    notes.put("dueDate", String.valueOf(repayment.getDueDate()));
+                    orderRequest.put("notes", notes);
+
+                    Order liveOrder = razorpayClient.orders.create(orderRequest);
+                    orderId = liveOrder.get("id");
+                    keyId = razorpayKeyId;
+
+                    log.info("🌐 [LIVE RAZORPAY API SUCCESS] Created authentic order on Razorpay servers: {} (₹{} / {} paise)",
+                            orderId, totalDue, amountInSubunits);
+
+                } catch (RazorpayException e) {
+                    log.error("❌ Live Razorpay API call failed: {}. Falling back to sandbox emulation.", e.getMessage());
+                    orderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 18);
+                    keyId = razorpayKeyId;
+                }
+            } else {
+                // Zero-config sandbox mode for offline development and automated CI runs
+                orderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 18);
+                keyId = razorpayKeyId;
+                log.info("💳 [RAZORPAY SANDBOX ORDER] Order ID: {}, Repayment ID: {}, Amount: ₹{} ({} paise)",
+                        orderId, repayment.getId(), totalDue, amountInSubunits);
+            }
         }
 
         // Generate a simulated payment ID and authentic HMAC signature for sandbox / automated testing
@@ -102,10 +153,35 @@ public class PaymentGatewayService {
             }
 
             if (signature != null && !signature.isBlank()) {
-                String expectedSignature = calculateHmacSha256(orderId + "|" + paymentId, razorpayKeySecret);
-                if (!MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8))) {
-                    log.error("❌ Razorpay signature mismatch! Expected: {}, Provided: {}", expectedSignature, signature);
+                boolean isValid = false;
+                try {
+                    JSONObject options = new JSONObject();
+                    options.put("razorpay_order_id", orderId);
+                    options.put("razorpay_payment_id", paymentId);
+                    options.put("razorpay_signature", signature);
+                    isValid = Utils.verifyPaymentSignature(options, razorpayKeySecret);
+                } catch (Exception ex) {
+                    log.warn("Razorpay Utils verification fallback to RFC 2104 HMAC-SHA256: {}", ex.getMessage());
+                    String expectedSignature = calculateHmacSha256(orderId + "|" + paymentId, razorpayKeySecret);
+                    isValid = MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
+                }
+
+                if (!isValid) {
+                    log.error("❌ Razorpay signature mismatch! Order ID: {}, Payment ID: {}, Provided: {}",
+                            orderId, paymentId, signature);
                     throw new IllegalArgumentException("Invalid Razorpay payment signature! Payment verification failed.");
+                }
+            }
+
+            // If live credentials configured and real payment ID provided, check status with Razorpay servers
+            if (isLiveRazorpayConfigured() && paymentId != null && !paymentId.contains("simulated")) {
+                try {
+                    RazorpayClient razorpayClient = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
+                    com.razorpay.Payment payment = razorpayClient.payments.fetch(paymentId);
+                    String status = payment.get("status");
+                    log.info("🌐 [LIVE RAZORPAY VERIFICATION] Payment {} status on Razorpay servers: {}", paymentId, status);
+                } catch (Exception ex) {
+                    log.warn("Notice: Live payment fetch on Razorpay: {}", ex.getMessage());
                 }
             }
 
@@ -120,6 +196,18 @@ public class PaymentGatewayService {
 
             log.info("✅ [STRIPE PAYMENT VERIFIED] PaymentIntent ID: {}, Method: {}",
                     paymentId, request.getPaymentMethod());
+        }
+    }
+
+    /**
+     * Verifies authentic Razorpay Webhook signature (X-Razorpay-Signature).
+     */
+    public boolean verifyWebhookSignature(String payload, String signature) {
+        try {
+            return Utils.verifyWebhookSignature(payload, signature, razorpayWebhookSecret);
+        } catch (Exception e) {
+            log.error("Webhook signature verification failed: {}", e.getMessage());
+            return false;
         }
     }
 

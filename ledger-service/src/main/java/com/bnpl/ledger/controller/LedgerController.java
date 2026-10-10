@@ -83,6 +83,13 @@ public class LedgerController {
         return repay(idempotencyKey, request);
     }
 
+    @PostMapping("/payment/webhook/razorpay")
+    public ResponseEntity<String> handleRazorpayWebhook(
+            @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
+            @RequestBody String payload) {
+        return ResponseEntity.ok(ledgerService.handleRazorpayWebhook(payload, signature));
+    }
+
     @GetMapping("/transactions/{userId}")
     public ResponseEntity<List<Transaction>> getUserTransactions(@PathVariable UUID userId) {
         return ResponseEntity.ok(ledgerService.getUserTransactions(userId));

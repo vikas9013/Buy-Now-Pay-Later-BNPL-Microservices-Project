@@ -149,8 +149,9 @@ The platform supports end-to-end payment gateway workflows for processing custom
 | Method | Endpoint | Headers | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `http://localhost:8080/api/ledger/checkout` | `X-Idempotency-Key` (Optional) | Execute Idempotent BNPL / EMI checkout |
-| `POST` | `http://localhost:8080/api/ledger/payment/create-order` | - | Create Razorpay / Stripe payment order |
+| `POST` | `http://localhost:8080/api/ledger/payment/create-order` | - | Create live Razorpay (`api.razorpay.com`) / Stripe order |
 | `POST` | `http://localhost:8080/api/ledger/payment/verify-and-repay` | `X-Idempotency-Key` (Optional) | Verify signature/token & process repayment |
+| `POST` | `http://localhost:8080/api/ledger/payment/webhook/razorpay` | `X-Razorpay-Signature` | Razorpay webhook callback for async reconciliation |
 | `POST` | `http://localhost:8080/api/ledger/repay` | `X-Idempotency-Key` (Optional) | Direct / Gateway repayment for an installment |
 | `GET` | `http://localhost:8080/api/ledger/transactions/{userId}` | - | Get full transaction history |
 | `GET` | `http://localhost:8080/api/ledger/repayments/pending/{userId}` | - | Get pending EMI installment dues |
