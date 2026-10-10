@@ -2,6 +2,8 @@ package com.bnpl.ledger.controller;
 
 import com.bnpl.ledger.dto.CheckoutRequest;
 import com.bnpl.ledger.dto.CheckoutResponse;
+import com.bnpl.ledger.dto.PaymentOrderRequest;
+import com.bnpl.ledger.dto.PaymentOrderResponse;
 import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
 import com.bnpl.ledger.entity.Transaction;
@@ -67,6 +69,18 @@ public class LedgerController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping({"/payment/create-order", "/payments/create-order"})
+    public ResponseEntity<PaymentOrderResponse> createPaymentOrder(@Valid @RequestBody PaymentOrderRequest request) {
+        return ResponseEntity.ok(ledgerService.createPaymentOrder(request));
+    }
+
+    @PostMapping({"/payment/verify-and-repay", "/payments/verify-and-repay"})
+    public ResponseEntity<Repayment> verifyAndRepay(
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody RepaymentRequest request) {
+        return repay(idempotencyKey, request);
     }
 
     @GetMapping("/transactions/{userId}")

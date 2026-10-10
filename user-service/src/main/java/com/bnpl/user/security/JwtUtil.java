@@ -4,7 +4,9 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
 
 import java.security.Key;
 import java.util.Date;
@@ -13,11 +15,16 @@ import java.util.UUID;
 @Component
 public class JwtUtil {
 
-    // Secret Key for Signing JWT Tokens (256-bit)
-    private static final String SECRET = "bnpl-super-secret-security-key-for-jwt-signing-2026";
+    @Value("${jwt.secret:bnpl-super-secret-security-key-for-jwt-signing-2026-production}")
+    private String secret;
     private static final long EXPIRATION_TIME = 86400000; // 24 hours in milliseconds
 
-    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
     public String generateToken(UUID userId, String email) {
         return Jwts.builder()

@@ -1,7 +1,7 @@
 package com.bnpl.ledger.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -9,12 +9,20 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class IdempotencyService {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public IdempotencyService(RedisTemplate<String, Object> redisTemplate, @org.springframework.beans.factory.annotation.Autowired(required = false) ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        if (objectMapper != null) {
+            this.objectMapper = objectMapper.copy().registerModule(new JavaTimeModule());
+        } else {
+            this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        }
+    }
 
     private static final String KEY_PREFIX = "idempotency:";
     private static final long TTL_HOURS = 24; // Cache idempotency results for 24 hours

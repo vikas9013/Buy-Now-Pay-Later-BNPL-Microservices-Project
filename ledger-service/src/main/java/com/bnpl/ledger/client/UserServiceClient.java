@@ -3,6 +3,8 @@ package com.bnpl.ledger.client;
 import com.bnpl.ledger.dto.CreditAccountResponse;
 import com.bnpl.ledger.dto.CreditDeductRequest;
 import lombok.RequiredArgsConstructor;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -15,6 +17,8 @@ public class UserServiceClient {
 
     private final WebClient userServiceWebClient;
 
+    @CircuitBreaker(name = "userService")
+    @Retry(name = "userService")
     public CreditAccountResponse getCreditAccount(UUID userId) {
         return userServiceWebClient.get()
                 .uri("/api/users/{userId}/credit", userId)
@@ -23,6 +27,8 @@ public class UserServiceClient {
                 .block(); // Synchronous call for simple workflow
     }
 
+    @CircuitBreaker(name = "userService")
+    @Retry(name = "userService")
     public CreditAccountResponse deductCredit(UUID userId, BigDecimal amount) {
         return userServiceWebClient.post()
                 .uri("/api/users/{userId}/credit/deduct", userId)
@@ -32,6 +38,8 @@ public class UserServiceClient {
                 .block();
     }
 
+    @CircuitBreaker(name = "userService")
+    @Retry(name = "userService")
     public CreditAccountResponse restoreCredit(UUID userId, BigDecimal amount) {
         return userServiceWebClient.post()
                 .uri("/api/users/{userId}/credit/restore", userId)

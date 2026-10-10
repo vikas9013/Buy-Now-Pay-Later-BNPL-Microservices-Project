@@ -2,8 +2,12 @@
 **/target/
 *.class
 
+# Environment & secrets
+.env
+
 # Log files
 *.log
+logs*.txt
 
 # IDE files
 .idea/

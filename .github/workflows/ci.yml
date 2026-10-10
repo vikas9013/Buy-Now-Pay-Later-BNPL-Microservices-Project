@@ -1,0 +1,46 @@
+name: CI Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Verify Microservices
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: ⚙️ Verify Maven Environment
+        run: |
+          mvn -version
+          java -version
+
+      - name: 📦 Compile All Microservices (Maven Reactor)
+        run: mvn -B clean test-compile
+
+      - name: 🐳 Validate Docker Compose Specification
+        run: docker compose config
+
+      - name: 📊 Build Success Summary
+        run: |
+          echo "===================================================="
+          echo "✅ All 5 Microservices Compiled Successfully!"
+          echo "   1. discovery-server (Port 8761)"
+          echo "   2. api-gateway (Port 8080)"
+          echo "   3. user-service (Port 8081)"
+          echo "   4. ledger-service (Port 8082)"
+          echo "   5. notification-service (Port 8083)"
+          echo "===================================================="

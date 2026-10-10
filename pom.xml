@@ -10,7 +10,10 @@
 	<description>BNPL Microservices Aggregator Parent</description>
 
 	<modules>
+		<module>discovery-server</module>
+		<module>api-gateway</module>
 		<module>user-service</module>
 		<module>ledger-service</module>
+		<module>notification-service</module>
 	</modules>
 </project>

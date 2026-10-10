@@ -1,5 +1,7 @@
 package com.bnpl.ledger.service;
 
+import com.bnpl.ledger.dto.PaymentOrderRequest;
+import com.bnpl.ledger.dto.PaymentOrderResponse;
 import com.bnpl.ledger.client.UserServiceClient;
 import com.bnpl.ledger.dto.CheckoutRequest;
 import com.bnpl.ledger.dto.CheckoutResponse;
@@ -36,6 +38,7 @@ public class LedgerService {
     private final RepaymentRepository repaymentRepository;
     private final UserServiceClient userServiceClient;
     private final KafkaProducerService kafkaProducerService;
+    private final PaymentGatewayService paymentGatewayService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RedissonClient redissonClient;
@@ -81,31 +84,42 @@ public class LedgerService {
             // 3. Call User Service via REST to deduct principal amount
             userServiceClient.deductCredit(request.getUserId(), request.getAmount());
 
-            // 4. Save Transaction Record
-            Transaction transaction = Transaction.builder()
-                    .userId(request.getUserId())
-                    .amount(request.getAmount())
-                    .merchantName(request.getMerchantName() + " (" + tenure + "M EMI @ " + interestRatePercent + "% Int)")
-                    .transactionDate(LocalDateTime.now())
-                    .status(TransactionStatus.SUCCESS)
-                    .build();
-
-            Transaction savedTransaction = transactionRepository.save(transaction);
-
-            // 5. Generate EMI Repayment Schedule for 1 to 12 months
-            for (int i = 1; i <= tenure; i++) {
-                LocalDate dueDate = LocalDate.now().plusMonths(i);
-
-                Repayment repayment = Repayment.builder()
+            Transaction savedTransaction = null;
+            try {
+                // 4. Save Transaction Record
+                Transaction transaction = Transaction.builder()
                         .userId(request.getUserId())
-                        .transaction(savedTransaction)
-                        .amountDue(monthlyInstallment)
-                        .dueDate(dueDate)
-                        .isPaid(false)
-                        .lateFeeApplied(BigDecimal.ZERO)
+                        .amount(request.getAmount())
+                        .merchantName(request.getMerchantName() + " (" + tenure + "M EMI @ " + interestRatePercent + "% Int)")
+                        .transactionDate(LocalDateTime.now())
+                        .status(TransactionStatus.SUCCESS)
                         .build();
 
-                repaymentRepository.save(repayment);
+                savedTransaction = transactionRepository.save(transaction);
+
+                // 5. Generate EMI Repayment Schedule for 1 to 12 months
+                for (int i = 1; i <= tenure; i++) {
+                    LocalDate dueDate = LocalDate.now().plusMonths(i);
+
+                    Repayment repayment = Repayment.builder()
+                            .userId(request.getUserId())
+                            .transaction(savedTransaction)
+                            .amountDue(monthlyInstallment)
+                            .dueDate(dueDate)
+                            .isPaid(false)
+                            .lateFeeApplied(BigDecimal.ZERO)
+                            .build();
+
+                    repaymentRepository.save(repayment);
+                }
+            } catch (Exception e) {
+                log.error("Failed to save transaction/repayments locally. Initiating Saga compensation (restoring credit) for user: {}", request.getUserId());
+                try {
+                    userServiceClient.restoreCredit(request.getUserId(), request.getAmount());
+                } catch (Exception rollbackEx) {
+                    log.error("CRITICAL: Saga compensation failed! Manual intervention required for user: {}", request.getUserId(), rollbackEx);
+                }
+                throw e; // Rethrow to rollback local ledger transaction
             }
 
             // 6. Publish Kafka Event asynchronously
@@ -171,6 +185,19 @@ public class LedgerService {
             throw new IllegalArgumentException("Payment amount ₹" + request.getAmount() + " is less than total due ₹" + totalDue);
         }
 
+        // Verify payment with Payment Gateway if specified
+        if (request.getPaymentGateway() != null && !request.getPaymentGateway().isBlank()) {
+            paymentGatewayService.verifyPayment(request, repayment);
+            repayment.setPaymentGateway(request.getPaymentGateway().toUpperCase());
+            repayment.setGatewayOrderId(request.getGatewayOrderId());
+            repayment.setGatewayPaymentId(request.getGatewayPaymentId());
+            repayment.setPaymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "UPI");
+        } else {
+            repayment.setPaymentGateway("INTERNAL");
+            repayment.setPaymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "DIRECT_DEBIT");
+        }
+        repayment.setPaidAt(LocalDateTime.now());
+
         // Mark repayment installment as paid
         repayment.setPaid(true);
         Repayment savedRepayment = repaymentRepository.save(repayment);
@@ -205,5 +232,11 @@ public class LedgerService {
 
     public List<Repayment> getUserPendingRepayments(UUID userId) {
         return repaymentRepository.findByUserIdAndIsPaidFalse(userId);
+    }
+
+    public PaymentOrderResponse createPaymentOrder(PaymentOrderRequest request) {
+        Repayment repayment = repaymentRepository.findById(request.getRepaymentId())
+                .orElseThrow(() -> new IllegalArgumentException("Repayment not found for ID: " + request.getRepaymentId()));
+        return paymentGatewayService.createPaymentOrder(request, repayment);
     }
 }

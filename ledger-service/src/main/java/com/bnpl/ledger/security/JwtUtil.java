@@ -3,7 +3,9 @@ package com.bnpl.ledger.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
 
 import java.security.Key;
 import java.util.Date;
@@ -12,8 +14,15 @@ import java.util.UUID;
 @Component
 public class JwtUtil {
 
-    private static final String SECRET = "bnpl-super-secret-security-key-for-jwt-signing-2026";
-    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+    @Value("${jwt.secret:bnpl-super-secret-security-key-for-jwt-signing-2026-production}")
+    private String secret;
+
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
     public Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()

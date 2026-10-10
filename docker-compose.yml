@@ -1,11 +1,27 @@
 version: '3.8'
 
 services:
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   redis:
     image: redis:7-alpine
     container_name: redis
     ports:
       - "6379:6379"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -15,6 +31,11 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -30,23 +51,38 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres-db:
     image: postgres:15-alpine
     container_name: postgres-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Vikas2005@
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   discovery-server:
     build: ./discovery-server
     container_name: discovery-server
     ports:
       - "8761:8761"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api-gateway:
     build: ./api-gateway
@@ -55,8 +91,15 @@ services:
       - "8080:8080"
     depends_on:
       - discovery-server
+      - zipkin
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   user-service:
     build: ./user-service
@@ -68,13 +111,21 @@ services:
       - kafka
       - redis
       - discovery-server
+      - zipkin
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: Vikas2005@
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      JWT_SECRET: ${JWT_SECRET}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   ledger-service:
     build: ./ledger-service
@@ -87,13 +138,21 @@ services:
       - redis
       - user-service
       - discovery-server
+      - zipkin
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/ledger_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: Vikas2005@
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      JWT_SECRET: ${JWT_SECRET}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   notification-service:
     build: ./notification-service
@@ -103,9 +162,16 @@ services:
     depends_on:
       - kafka
       - discovery-server
+      - zipkin
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
