@@ -4,6 +4,7 @@ import com.bnpl.notification.event.CheckoutEvent;
 import com.bnpl.notification.event.RepaymentEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +14,12 @@ import org.springframework.stereotype.Service;
 public class NotificationConsumerService {
 
     private final SmsService smsService;
+
+    @Value("${notification.checkout-phone:+919968640964}")
+    private String checkoutPhone = "+919968640964";
+
+    @Value("${notification.repayment-phone:+919876543210}")
+    private String repaymentPhone = "+919876543210";
 
     @KafkaListener(topics = "bnpl-checkout-events", groupId = "notification-service-group")
     public void handleCheckoutNotification(CheckoutEvent event) {
@@ -26,8 +33,7 @@ public class NotificationConsumerService {
         log.info(message);
         log.info("----------------------------------------------------------------------");
 
-        // Send real SMS via Twilio to Vikas (+919968640964)
-        smsService.sendSms("+919968640964", message);
+        smsService.sendSms(checkoutPhone, message);
     }
 
     @KafkaListener(topics = "bnpl-repayment-events", groupId = "notification-service-group")
@@ -42,7 +48,6 @@ public class NotificationConsumerService {
         log.info(message);
         log.info("----------------------------------------------------------------------");
 
-        // Send real SMS via Twilio (or fallback mock)
-        smsService.sendSms("+919876543210", message);
+        smsService.sendSms(repaymentPhone, message);
     }
 }

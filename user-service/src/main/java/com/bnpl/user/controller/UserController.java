@@ -2,6 +2,7 @@ package com.bnpl.user.controller;
 
 import com.bnpl.user.dto.CreditAccountResponse;
 import com.bnpl.user.dto.CreditDeductRequest;
+import com.bnpl.user.dto.CreditUpgradeRequest;
 import com.bnpl.user.dto.UserOnboardRequest;
 import com.bnpl.user.entity.User;
 import com.bnpl.user.service.UserService;
@@ -49,7 +50,7 @@ public class UserController {
     @PostMapping("/{userId}/credit/upgrade")
     public ResponseEntity<CreditAccountResponse> upgradeCredit(
             @PathVariable UUID userId,
-            @Valid @RequestBody com.bnpl.user.dto.CreditUpgradeRequest request) {
+            @Valid @RequestBody CreditUpgradeRequest request) {
         return ResponseEntity.ok(userService.upgradeCreditLimit(userId, request.getNewCreditLimit(), request.getReason()));
     }
 }

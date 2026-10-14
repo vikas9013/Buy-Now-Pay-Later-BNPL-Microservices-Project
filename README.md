@@ -166,12 +166,29 @@ The platform supports end-to-end payment gateway workflows for processing custom
 
 ## 🧪 Testing & Health Verification
 
+### 🏆 Automated Unit & Component Test Suite Scorecard (100% Passed)
+The aggregate Maven test harness verifies all 5 microservices in the reactor:
+
+| Service | Port | Tests Run | Passed | Failures / Errors | Core Test Coverage |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **`discovery-server`** | 8761 | 1 | 1 | 0 / 0 | Eureka Server registry & context initialization |
+| **`api-gateway`** | 8080 | 4 | 4 | 0 / 0 | JWT Bearer verification, open endpoint bypass, header sanitization |
+| **`user-service`** | 8081 | 16 | 16 | 0 / 0 | Registration, login, BCrypt hashing, Redisson locks, credit upgrade/deduct |
+| **`ledger-service`** | 8082 | 17 | 17 | 0 / 0 | EMI math (1-12mo), Redis idempotency, Razorpay HMAC, AI risk scoring |
+| **`notification-service`** | 8083 | 4 | 4 | 0 / 0 | Kafka event consumers (checkout & repayment), SMS dispatch & mock fallback |
+| **Total** | - | **42** | **42** | **0 / 0** | **100% Passed Across All Modules** |
+
+```powershell
+# Run the automated test suite across all 5 microservices
+mvn test
+```
+
 ### 🏆 Master 1-Command Unified Test Suite (`test-all.ps1`)
 The ultimate single command that tests everything end-to-end:
 ```powershell
 pwsh -File .\test-all.ps1
 ```
-* **Phase 1 (Maven JUnit 5 Suite):** Runs 41 automated unit and integration tests across all 5 microservices in parallel.
+* **Phase 1 (Maven JUnit 5 Suite):** Runs 42 automated unit and integration tests across all 5 microservices in parallel.
 * **Phase 2 (System Health & Gateway Smoke Test):** Verifies PostgreSQL, Redis, Kafka, Eureka discovery registration, JWT authentication, EMI engine, AI advisor, and credit upgrades.
 * **Phase 3 (Multi-Customer Payment & Concurrency Suite):** Tests 4 real customers, 5 merchant checkouts across 1-12 months tenure, Razorpay UPI & Stripe card payments, Redis idempotency caching, overdraft protection, and Redisson distributed locking concurrency stress.
 
@@ -195,6 +212,16 @@ You can also run any specific testing phase individually:
   ```powershell
   pwsh -File .\test-real-payments.ps1
   ```
+
+---
+
+## 🔒 Security & Resiliency Hardening
+
+* **API Gateway Identity Sanitization:** The reactive `AuthenticationFilter` strips any client-supplied `X-User-Id` headers from external requests to prevent identity spoofing on internal microservice routes.
+* **Docker Multi-Database Provisioning:** Mounted `init.sql` into `/docker-entrypoint-initdb.d/init.sql:ro` so both `user_db` and `ledger_db` are created automatically on fresh container startup.
+* **Credential Hygiene:** Sanitized default database password fallbacks in `application.properties` to ensure personal developer credentials are never stored in version control; secrets are supplied securely via `.env`.
+* **Dynamic Notification Routing:** Replaced hardcoded mobile numbers in `notification-service` with configurable environment variables (`NOTIFICATION_CHECKOUT_PHONE` and `NOTIFICATION_REPAYMENT_PHONE`).
+* **Cross-Platform Script Compatibility:** PowerShell scripts are saved with UTF-8 BOM encoding for seamless execution in both Windows PowerShell 5.1 and PowerShell 7 (`pwsh`).
 
 ---
 

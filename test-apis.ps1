@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $rand = Get-Random
 $email = "testuser$rand@example.com"
@@ -35,7 +35,7 @@ $headers = @{
 
 Write-Host "3. Testing GET /api/users/{userId}/credit..."
 $creditResponse = Invoke-RestMethod -Uri "http://localhost:8080/api/users/$userId/credit" -Method Get -Headers $headers
-Write-Host "Credit check successful! Available limit: $($creditResponse.availableLimit)"
+Write-Host "Credit check successful! Available credit: Rs $($creditResponse.availableCredit) | Total Limit: Rs $($creditResponse.totalCreditLimit)"
 Write-Host ""
 
 Write-Host "4. Testing POST /api/ledger/checkout..."
@@ -83,7 +83,7 @@ if ($pendingResponse.Count -gt 0) {
     }
 
     $repayResponse = Invoke-RestMethod -Uri "http://localhost:8080/api/ledger/repay" -Method Post -Headers $repayHeaders -Body $repayBody
-    Write-Host "Repayment successful! Status: $($repayResponse.status)"
+    Write-Host "Repayment successful! Installment isPaid: $($repayResponse.isPaid)"
 } else {
     Write-Host "Skipping repayment test because no pending installments were found."
 }

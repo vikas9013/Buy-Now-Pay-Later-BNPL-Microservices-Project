@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class KafkaConsumerService {
 
-    private final UserService userService;
-
     @KafkaListener(topics = "bnpl-checkout-events", groupId = "user-service-group")
     public void consumeCheckoutEvent(CheckoutEvent event) {
         log.info("[KAFKA CONSUMER] Received CheckoutEvent from Kafka: userId={}, amount=₹{}, merchant={}",
@@ -27,4 +25,5 @@ public class KafkaConsumerService {
                 event.getUserId(), event.getAmount());
         // Custom event-driven handling or logging
     }
+    // event-driven kafka consumer
 }

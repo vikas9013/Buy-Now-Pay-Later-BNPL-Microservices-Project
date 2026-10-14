@@ -1,4 +1,4 @@
-# PowerShell Auto-Launch Script for BNPL Microservices & Spring Cloud Infrastructure
+﻿# PowerShell Auto-Launch Script for BNPL Microservices & Spring Cloud Infrastructure
 Write-Host "🚀 Launching BNPL Microservices & Spring Cloud Infrastructure..." -ForegroundColor Green
 
 $basePath = "C:\Users\vikas\Documents\antigravity\bnpl-microservices"

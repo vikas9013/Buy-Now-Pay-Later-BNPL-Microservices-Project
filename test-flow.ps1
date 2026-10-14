@@ -1,4 +1,4 @@
-# Setup variables
+﻿# Setup variables
 $GatewayUrl = "http://localhost:8080"
 $ContentType = "application/json"
 $IdempotencyKey = [guid]::NewGuid().ToString()

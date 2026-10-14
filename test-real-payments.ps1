@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BNPL Microservices - Real Payment Services and Realistic Dataset Test Suite
 # Tests: Real User Onboarding, Multi-Tenure EMI Engine, Razorpay and Stripe Gateways,
 #        Redis Idempotency, Redisson Distributed Locking, Credit Restoration

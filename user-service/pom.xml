@@ -15,6 +15,7 @@
 	<description>User and Credit Account Management Service</description>
 	<properties>
 		<java.version>17</java.version>
+		<lombok.version>1.18.48</lombok.version>
 		<spring-cloud.version>2023.0.0</spring-cloud.version>
 		<spring-ai.version>1.0.0-M1</spring-ai.version>
 	</properties>
@@ -157,6 +158,19 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

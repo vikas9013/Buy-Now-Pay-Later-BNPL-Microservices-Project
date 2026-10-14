@@ -37,11 +37,11 @@ class AuthenticationFilterTest {
     void testOpenEndpoint_BypassesAuth() {
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/register").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-        when(filterChain.filter(exchange)).thenReturn(Mono.empty());
+        when(filterChain.filter(any())).thenReturn(Mono.empty());
 
         Mono<Void> result = authenticationFilter.filter(exchange, filterChain);
         assertNotNull(result);
-        verify(filterChain, times(1)).filter(exchange);
+        verify(filterChain, times(1)).filter(any());
         verifyNoInteractions(jwtUtil);
     }
 

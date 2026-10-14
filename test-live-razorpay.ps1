@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $gatewayUrl = "http://localhost:8080"
 
 Write-Host "================================================================================" -ForegroundColor Cyan
@@ -26,7 +26,7 @@ Write-Host "   [OK] JWT Bearer Token acquired." -ForegroundColor Green
 # STEP 2: Verify Initial Credit Limit
 $credit = Invoke-RestMethod -Uri "$gatewayUrl/api/users/$userId/credit" -Method Get `
     -Headers @{ "Authorization" = "Bearer $token" }
-Write-Host "   [INFO] Initial Credit Limit: Rs $($credit.creditLimit) | Available: Rs $($credit.availableCredit)" -ForegroundColor Gray
+Write-Host "   [INFO] Initial Credit Limit: Rs $($credit.totalCreditLimit) | Available: Rs $($credit.availableCredit)" -ForegroundColor Gray
 
 # STEP 3: Execute BNPL Checkout (EMI Plan: 3 Months)
 Write-Host "`n2. Executing BNPL Checkout for 'OnePlus Smartphone' (Rs 3,000 | 3-Month EMI)..." -ForegroundColor Yellow
@@ -83,7 +83,7 @@ Write-Host "   ====================================================" -Foreground
 # STEP 6: Execute Payment Verification & Repayment
 Write-Host "`n5. Verifying Signature and Completing Repayment..." -ForegroundColor Yellow
 $paymentId = "pay_" + [System.Guid]::NewGuid().ToString("N").Substring(0, 14)
-$hmacSecret = "cfHXSX0hO2VCyjrOqE92r7IH"
+$hmacSecret = if ($env:RAZORPAY_KEY_SECRET) { $env:RAZORPAY_KEY_SECRET } else { "bnplSecretKey2026Secure" }
 
 $hmac = New-Object System.Security.Cryptography.HMACSHA256
 $hmac.Key = [System.Text.Encoding]::UTF8.GetBytes($hmacSecret)
@@ -114,7 +114,7 @@ Write-Host "`n6. Checking User Available Credit Restoration..." -ForegroundColor
 $creditAfter = Invoke-RestMethod -Uri "$gatewayUrl/api/users/$userId/credit" -Method Get `
     -Headers @{ "Authorization" = "Bearer $token" }
 
-Write-Host "   [OK] Credit Limit Restored! New Available Credit: Rs $($creditAfter.availableCredit) / Rs $($creditAfter.creditLimit)" -ForegroundColor Green
+Write-Host "   [OK] Credit Limit Restored! New Available Credit: Rs $($creditAfter.availableCredit) / Rs $($creditAfter.totalCreditLimit)" -ForegroundColor Green
 
 # STEP 8: Test Asynchronous Razorpay Webhook Reconciliation (Installment #2)
 Write-Host "`n7. Testing Razorpay Webhook Event for Installment #2 (payment.captured)..." -ForegroundColor Yellow

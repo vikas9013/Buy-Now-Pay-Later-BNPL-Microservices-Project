@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BNPL Microservices - Master 1-Command Unified Test Suite
 # Runs: Phase 1 (Maven JUnit 5 Unit & Component Tests across all 5 microservices)
 #       Phase 2 (Live Services Health, Eureka Registry & End-to-End Smoke Test)

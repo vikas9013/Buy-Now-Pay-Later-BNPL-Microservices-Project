@@ -50,6 +50,12 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         // 2. Allow Open/Public endpoints
         boolean isOpen = OPEN_ENDPOINTS.stream().anyMatch(path::contains);
         if (isOpen) {
+            if (request.getHeaders().containsKey("X-User-Id")) {
+                ServerHttpRequest sanitizedRequest = request.mutate()
+                        .headers(httpHeaders -> httpHeaders.remove("X-User-Id"))
+                        .build();
+                return chain.filter(exchange.mutate().request(sanitizedRequest).build());
+            }
             return chain.filter(exchange);
         }
 
@@ -71,8 +77,9 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
             UUID userId = jwtUtil.extractUserId(token);
 
-            // Forward verified user ID downstream in header
+            // Forward verified user ID downstream in header, overriding any client-supplied header
             ServerHttpRequest modifiedRequest = request.mutate()
+                    .headers(httpHeaders -> httpHeaders.remove("X-User-Id"))
                     .header("X-User-Id", userId.toString())
                     .build();
 

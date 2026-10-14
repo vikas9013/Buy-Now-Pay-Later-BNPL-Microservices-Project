@@ -4,7 +4,6 @@ import com.bnpl.ledger.dto.PaymentOrderRequest;
 import com.bnpl.ledger.dto.PaymentOrderResponse;
 import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
-import com.bnpl.ledger.entity.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

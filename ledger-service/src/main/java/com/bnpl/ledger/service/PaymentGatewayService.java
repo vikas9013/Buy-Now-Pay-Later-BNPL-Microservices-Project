@@ -170,10 +170,6 @@ public class PaymentGatewayService {
                     // Fallback check for offline/test demo key
                     String fallbackSig = calculateHmacSha256(orderId + "|" + paymentId, "bnplSecretKey2026Secure");
                     isValid = MessageDigest.isEqual(fallbackSig.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
-                    if (!isValid) {
-                        String testSig = calculateHmacSha256(orderId + "|" + paymentId, "cfHXSX0hO2VCyjrOqE92r7IH");
-                        isValid = MessageDigest.isEqual(testSig.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
-                    }
                 }
 
                 if (!isValid) {
