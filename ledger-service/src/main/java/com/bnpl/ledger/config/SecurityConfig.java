@@ -46,10 +46,11 @@ public class SecurityConfig {
                     "/",
                     "/index.html",
                     "/static/**",
-                    "/api/ledger/**",
+                    "/api/ledger/payment/webhook/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",
+                    "/actuator/**",
                     "/error"
                 ).permitAll()
                 .anyRequest().authenticated()

@@ -2,11 +2,13 @@ package com.bnpl.ledger.controller;
 
 import com.bnpl.ledger.dto.CheckoutRequest;
 import com.bnpl.ledger.dto.CheckoutResponse;
+import com.bnpl.ledger.dto.FinancialAdvisorResponse;
 import com.bnpl.ledger.dto.PaymentOrderRequest;
 import com.bnpl.ledger.dto.PaymentOrderResponse;
 import com.bnpl.ledger.dto.RepaymentRequest;
 import com.bnpl.ledger.entity.Repayment;
 import com.bnpl.ledger.entity.Transaction;
+import com.bnpl.ledger.service.AiFinancialAdvisorService;
 import com.bnpl.ledger.service.IdempotencyService;
 import com.bnpl.ledger.service.LedgerService;
 import jakarta.validation.Valid;
@@ -26,28 +28,42 @@ public class LedgerController {
 
     private final LedgerService ledgerService;
     private final IdempotencyService idempotencyService;
+    private final AiFinancialAdvisorService aiFinancialAdvisorService;
 
     @PostMapping("/checkout")
     public ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CheckoutRequest request) {
 
-        // Check if Idempotency Key was already processed
+        // 1. Check if Idempotency Key was already processed
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             CheckoutResponse cachedResponse = idempotencyService.getResponse(idempotencyKey, CheckoutResponse.class);
             if (cachedResponse != null) {
                 return ResponseEntity.status(HttpStatus.OK).body(cachedResponse);
             }
+
+            // 2. Atomically acquire lock to prevent simultaneous duplicate execution
+            boolean lockAcquired = idempotencyService.tryAcquireLock(idempotencyKey);
+            if (!lockAcquired) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).build();
+            }
         }
 
-        CheckoutResponse response = ledgerService.processCheckout(request);
+        try {
+            CheckoutResponse response = ledgerService.processCheckout(request);
 
-        // Cache response in Redis with Idempotency Key
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            idempotencyService.saveResponse(idempotencyKey, response);
+            // 3. Cache response in Redis with Idempotency Key
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                idempotencyService.saveResponse(idempotencyKey, response);
+            }
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception ex) {
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                idempotencyService.releaseLock(idempotencyKey);
+            }
+            throw ex;
         }
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/repay")
@@ -60,15 +76,27 @@ public class LedgerController {
             if (cachedResponse != null) {
                 return ResponseEntity.status(HttpStatus.OK).body(cachedResponse);
             }
+
+            boolean lockAcquired = idempotencyService.tryAcquireLock(idempotencyKey);
+            if (!lockAcquired) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).build();
+            }
         }
 
-        Repayment response = ledgerService.processRepayment(request);
+        try {
+            Repayment response = ledgerService.processRepayment(request);
 
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            idempotencyService.saveResponse(idempotencyKey, response);
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                idempotencyService.saveResponse(idempotencyKey, response);
+            }
+
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                idempotencyService.releaseLock(idempotencyKey);
+            }
+            throw ex;
         }
-
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping({"/payment/create-order", "/payments/create-order"})
@@ -98,5 +126,10 @@ public class LedgerController {
     @GetMapping("/repayments/pending/{userId}")
     public ResponseEntity<List<Repayment>> getUserPendingRepayments(@PathVariable UUID userId) {
         return ResponseEntity.ok(ledgerService.getUserPendingRepayments(userId));
+    }
+
+    @GetMapping("/ai/financial-insights/{userId}")
+    public ResponseEntity<FinancialAdvisorResponse> getFinancialAdvisorInsights(@PathVariable UUID userId) {
+        return ResponseEntity.ok(aiFinancialAdvisorService.generateFinancialInsights(userId));
     }
 }

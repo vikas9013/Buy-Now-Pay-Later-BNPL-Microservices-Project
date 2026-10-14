@@ -203,6 +203,52 @@ public class UserService {
         }
     }
 
+    @Transactional
+    public CreditAccountResponse upgradeCreditLimit(UUID userId, BigDecimal newTotalLimit, String reason) {
+        String lockKey = "lock:credit:" + userId;
+        RLock lock = (redissonClient != null) ? redissonClient.getLock(lockKey) : null;
+
+        try {
+            if (lock != null) {
+                boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+                if (!isLocked) {
+                    throw new IllegalStateException("Could not acquire lock for user credit account upgrade. Please try again.");
+                }
+                log.info("🔒 Redisson Lock acquired for user credit upgrade: {}", lockKey);
+            }
+
+            CreditAccount account = creditAccountRepository.findByUserId(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Credit account not found for userId: " + userId));
+
+            if (account.getAccountStatus() != AccountStatus.ACTIVE) {
+                throw new IllegalStateException("Cannot upgrade credit limit. Account is not active. Status: " + account.getAccountStatus());
+            }
+
+            if (newTotalLimit.compareTo(account.getTotalCreditLimit()) <= 0) {
+                throw new IllegalArgumentException("New credit limit (₹" + newTotalLimit 
+                        + ") must be strictly greater than current limit (₹" + account.getTotalCreditLimit() + ")");
+            }
+
+            BigDecimal limitDifference = newTotalLimit.subtract(account.getTotalCreditLimit());
+            account.setTotalCreditLimit(newTotalLimit);
+            account.setAvailableCredit(account.getAvailableCredit().add(limitDifference));
+
+            CreditAccount updated = creditAccountRepository.save(account);
+            log.info("🎉 [CREDIT UPGRADE SUCCESS] User: {}, Old Limit: ₹{}, New Limit: ₹{}, Reason: {}",
+                    userId, account.getTotalCreditLimit().subtract(limitDifference), newTotalLimit, reason);
+
+            return mapToResponse(updated);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Credit upgrade interrupted", e);
+        } finally {
+            if (lock != null && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+                log.info("🔓 Redisson Lock released: {}", lockKey);
+            }
+        }
+    }
+
     private CreditAccountResponse mapToResponse(CreditAccount account) {
         return CreditAccountResponse.builder()
                 .accountId(account.getId())

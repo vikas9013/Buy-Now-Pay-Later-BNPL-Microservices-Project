@@ -17,11 +17,15 @@ public class UserServiceClient {
 
     private final WebClient userServiceWebClient;
 
+    @org.springframework.beans.factory.annotation.Value("${internal.service.secret:bnpl-internal-system-secret-2026}")
+    private String internalServiceSecret;
+
     @CircuitBreaker(name = "userService")
     @Retry(name = "userService")
     public CreditAccountResponse getCreditAccount(UUID userId) {
         return userServiceWebClient.get()
                 .uri("/api/users/{userId}/credit", userId)
+                .header("X-Internal-Service", internalServiceSecret)
                 .retrieve()
                 .bodyToMono(CreditAccountResponse.class)
                 .block(); // Synchronous call for simple workflow
@@ -32,6 +36,7 @@ public class UserServiceClient {
     public CreditAccountResponse deductCredit(UUID userId, BigDecimal amount) {
         return userServiceWebClient.post()
                 .uri("/api/users/{userId}/credit/deduct", userId)
+                .header("X-Internal-Service", internalServiceSecret)
                 .bodyValue(new CreditDeductRequest(amount))
                 .retrieve()
                 .bodyToMono(CreditAccountResponse.class)
@@ -43,6 +48,7 @@ public class UserServiceClient {
     public CreditAccountResponse restoreCredit(UUID userId, BigDecimal amount) {
         return userServiceWebClient.post()
                 .uri("/api/users/{userId}/credit/restore", userId)
+                .header("X-Internal-Service", internalServiceSecret)
                 .bodyValue(new CreditDeductRequest(amount))
                 .retrieve()
                 .bodyToMono(CreditAccountResponse.class)

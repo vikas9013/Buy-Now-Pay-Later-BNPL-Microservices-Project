@@ -14,4 +14,5 @@ public interface RepaymentRepository extends JpaRepository<Repayment, UUID> {
     List<Repayment> findByIsPaidFalseAndDueDateBefore(LocalDate date);
     List<Repayment> findByTransactionId(UUID transactionId);
     List<Repayment> findByUserIdAndIsPaidFalse(UUID userId);
+    List<Repayment> findByUserId(UUID userId);
 }

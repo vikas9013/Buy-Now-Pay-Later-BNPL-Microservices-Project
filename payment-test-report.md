@@ -1,6 +1,6 @@
 # BNPL Microservices and Real Payment Services Test Report
 
-**Execution Timestamp:** 2026-10-10 14:07:21  
+**Execution Timestamp:** 2026-10-13 22:21:21  
 **Environment:** Spring Cloud Microservices + PostgreSQL 18 + Redis 7 + Apache Kafka + Redisson RLock  
 **API Gateway Entrypoint:** http://localhost:8080  
 **Payment Gateways Integrated:** Razorpay (HMAC-SHA256 UPI) and Stripe (3D-Secure Cards)
@@ -20,11 +20,11 @@
 | BNPL Checkout (6 Month EMI) | Rohan Gupta | Purchase at Amazon Electronics | Rs 6000 @ 10% Int -> Rs 1100/mo | PASSED |
 | BNPL Checkout (9 Month EMI) | Ananya Iyer | Purchase at Croma Digital Store | Rs 5000 @ 12% Int -> Rs 622.22/mo | PASSED |
 | BNPL Checkout (12 Month EMI) | Aarav Sharma | Purchase at Apple Store India | Rs 4000 @ 15% Int -> Rs 383.33/mo | PASSED |
-| Razorpay UPI Repayment | Priya Patel | Verified and Paid Rs 1050 | Payment ID: pay_Rzp76215889, Method: UPI | PASSED |
-| Stripe Card Repayment | Rohan Gupta | Verified and Paid Rs 1100 | Payment ID: ch_Stripe25939722, Method: CREDIT_CARD | PASSED |
-| Redis Idempotency Engine | Aarav Sharma | Duplicate Request Protection | Exact match, 0 double charges, cache latency 43ms | PASSED |
+| Razorpay UPI Repayment | Priya Patel | Verified and Paid Rs 1050 | Payment ID: pay_Rzp53102022, Method: UPI | PASSED |
+| Stripe Card Repayment | Rohan Gupta | Verified and Paid Rs 1100 | Payment ID: ch_Stripe41947516, Method: CREDIT_CARD | PASSED |
+| Redis Idempotency Engine | Aarav Sharma | Duplicate Request Protection | Exact match, 0 double charges, cache latency 29ms | PASSED |
 | Credit Limit Enforcement | Aarav Sharma | Rs 50,000 Over-Limit Purchase | Rejected: Insufficient credit limit | PASSED |
-| Redisson Distributed Locking | Ananya Iyer | 4 Parallel Checkouts | 2 of 4 succeeded, exact credit balance preserved | PASSED |
+| Redisson Distributed Locking | Ananya Iyer | 4 Parallel Checkouts | 4 of 4 succeeded, exact credit balance preserved | PASSED |
 
 ---
 
@@ -43,7 +43,7 @@
 ## Enterprise Transaction Safety Metrics
 
 1. **Idempotency Engine (X-Idempotency-Key):**
-   - Cache hit detected and served duplicate requests within **43ms**.
+   - Cache hit detected and served duplicate requests within **29ms**.
    - Guaranteed **zero double-charging** across client retries.
 
 2. **Distributed Concurrency Lock (Redisson RLock):**

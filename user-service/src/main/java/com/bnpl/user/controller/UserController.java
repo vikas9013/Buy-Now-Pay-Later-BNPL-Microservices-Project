@@ -45,4 +45,11 @@ public class UserController {
             @Valid @RequestBody CreditDeductRequest request) {
         return ResponseEntity.ok(userService.restoreCredit(userId, request.getAmount()));
     }
+
+    @PostMapping("/{userId}/credit/upgrade")
+    public ResponseEntity<CreditAccountResponse> upgradeCredit(
+            @PathVariable UUID userId,
+            @Valid @RequestBody com.bnpl.user.dto.CreditUpgradeRequest request) {
+        return ResponseEntity.ok(userService.upgradeCreditLimit(userId, request.getNewCreditLimit(), request.getReason()));
+    }
 }

@@ -19,14 +19,16 @@ A production-grade, pure backend **Buy Now, Pay Later (BNPL) & Flexible EMI** di
 
 ## 📌 Architectural Highlights
 
-* **Single Entry Point (`api-gateway` @ Port 8080):** Spring Cloud API Gateway routes and load-balances all client traffic.
+* **Single Entry Point (`api-gateway` @ Port 8080):** Spring Cloud API Gateway routes, load-balances, validates JWT Bearer tokens, and injects verified `X-User-Id` downstream.
 * **Dynamic Service Discovery (`discovery-server` @ Port 8761):** Netflix Eureka registry eliminates hardcoded service URLs.
 * **Payment Gateway Integration (Razorpay & Stripe):** Supports order creation, subunit conversions (paise/cents), and cryptographic **HMAC-SHA256 signature verification** for real UPI and Card repayments.
-* **Redis Idempotency Engine (`X-Idempotency-Key`):** Prevents double-charging during network retries or duplicate checkouts with sub-30ms response caching.
-* **Redisson Distributed Locks (`Redlock`):** Prevents credit race conditions during high-concurrency checkout requests via `lock:credit:<userId>`.
+* **Concurrency-Hardened Redis Idempotency Engine (`X-Idempotency-Key`):** Features atomic `setIfAbsent` in-flight locks and cache fallback, preventing race condition duplicates and double-charging with sub-30ms response times.
+* **Redisson Distributed Locks (`Redlock`):** Synchronizes credit deduction and checkout execution via `lock:credit:<userId>`.
+* **Database Versioning with Flyway:** Automated, reproducible schema migrations (`V1__init_user_schema.sql`, `V1__init_ledger_schema.sql`).
+* **Inter-Service Security & Zero-Trust:** Microservice endpoints require authentication or mutual inter-service tokens (`X-Internal-Service`).
 * **Microservices Isolation:** Strict Database-per-Service pattern (`user_db` and `ledger_db`).
-* **Stateless OAuth 2.0 / JWT Security:** HMAC-SHA256 token issuance and Bearer token interception filter.
 * **Event-Driven Architecture (EDA):** Asynchronous message publishing & consumption via Apache Kafka (`bnpl-checkout-events`, `bnpl-repayment-events`).
+* **Resilience & Fault Tolerance:** Integrated Resilience4j `@CircuitBreaker` and `@Retry` with Saga compensation rollbacks.
 * **Flexible EMI Calculation Engine:** Supports 1 to 12-month installment schedules with automated interest calculation.
 * **Automated Late Fee Scheduler:** Spring `@Scheduled` CRON job for enforcing late fees on overdue accounts.
 * **Automated Credit Restoration:** Synchronous and event-driven credit limit restoration upon verified installment repayment.
@@ -144,6 +146,7 @@ The platform supports end-to-end payment gateway workflows for processing custom
 | `GET` | `http://localhost:8080/api/users/{userId}/credit` | Fetch credit account details & balance |
 | `POST` | `http://localhost:8080/api/users/{userId}/credit/deduct` | Internal: Deduct credit limit |
 | `POST` | `http://localhost:8080/api/users/{userId}/credit/restore` | Internal: Restore credit limit |
+| `POST` | `http://localhost:8080/api/users/{userId}/credit/upgrade` | Upgrade total credit limit & increment available balance |
 
 ### 💳 Ledger, EMI & Payment Operations (`lb://LEDGER-SERVICE`)
 | Method | Endpoint | Headers | Description |
@@ -155,27 +158,43 @@ The platform supports end-to-end payment gateway workflows for processing custom
 | `POST` | `http://localhost:8080/api/ledger/repay` | `X-Idempotency-Key` (Optional) | Direct / Gateway repayment for an installment |
 | `GET` | `http://localhost:8080/api/ledger/transactions/{userId}` | - | Get full transaction history |
 | `GET` | `http://localhost:8080/api/ledger/repayments/pending/{userId}` | - | Get pending EMI installment dues |
+| `GET` | `http://localhost:8080/api/ledger/ai/financial-insights/{userId}` | - | GenAI Financial & Credit Risk Advisor (Spring AI) |
 
 ---
 
-## 🧪 Testing Real Payment Services (Automated Test Suite)
+---
 
-An enterprise automated test harness is included to test realistic customer scenarios, payment gateways, and concurrency:
+## 🧪 Testing & Health Verification
 
+### 🏆 Master 1-Command Unified Test Suite (`test-all.ps1`)
+The ultimate single command that tests everything end-to-end:
 ```powershell
-# Run the complete real-world payment services test suite
-pwsh -File .\test-real-payments.ps1
+pwsh -File .\test-all.ps1
 ```
+* **Phase 1 (Maven JUnit 5 Suite):** Runs 41 automated unit and integration tests across all 5 microservices in parallel.
+* **Phase 2 (System Health & Gateway Smoke Test):** Verifies PostgreSQL, Redis, Kafka, Eureka discovery registration, JWT authentication, EMI engine, AI advisor, and credit upgrades.
+* **Phase 3 (Multi-Customer Payment & Concurrency Suite):** Tests 4 real customers, 5 merchant checkouts across 1-12 months tenure, Razorpay UPI & Stripe card payments, Redis idempotency caching, overdraft protection, and Redisson distributed locking concurrency stress.
 
-### What the Test Suite Verifies:
-1. **Realistic Customer Personas:** Onboards Aarav Sharma, Priya Patel, Rohan Gupta, and Ananya Iyer with instant KYC approval and ₹10,000 credit lines.
-2. **Multi-Tenure Retail Checkouts:** Executes real purchases across Swiggy (1M 0% Int), Myntra (3M 5% Int), Amazon (6M 10% Int), Croma (9M 12% Int), and Apple Store (12M 15% Int).
-3. **Razorpay UPI Repayments:** Generates live orders, simulates UPI payments, validates HMAC-SHA256 signatures, and restores credit lines.
-4. **Stripe Card Repayments:** Creates PaymentIntents, authorizes card tokens, processes repayments, and updates the ledger.
-5. **Redis Idempotency Engine:** Validates that duplicate requests with identical `X-Idempotency-Key` return in <25ms with zero double-charging.
-6. **Credit Overdraft Guard:** Verifies system blocks transactions exceeding available credit limits.
-7. **Redisson Distributed Lock Stress Test:** Fires simultaneous parallel checkout requests to ensure 100% thread safety and zero balance corruption.
-8. **Audit Report:** Automatically exports a complete report to `payment-test-report.md`.
+> **Fast Live Verification:** To run all live infrastructure, gateway, and payment checks without recompiling Maven:
+> ```powershell
+> pwsh -File .\test-all.ps1 -SkipUnitTests
+> ```
+
+### 2. Individual Test Runners
+You can also run any specific testing phase individually:
+
+* **Unit & Component Tests only:**
+  ```powershell
+  mvn test
+  ```
+* **System Health & Gateway Smoke Test only:**
+  ```powershell
+  pwsh -File .\check-services.ps1
+  ```
+* **Automated Payment & Concurrency Flows only:**
+  ```powershell
+  pwsh -File .\test-real-payments.ps1
+  ```
 
 ---
 
